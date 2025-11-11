@@ -15,6 +15,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Flimsy CD",
             "description": "A Flimsy CD you bought from a random guy you found on the street who said had mystic properties, instead it was a text file saying thanks for the money.",
             "value": 1,
+            "cost": 20,
             "type": "click",
             "image": "images/item-img-1.png"
         },
@@ -23,6 +24,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Mr. Click's Hand",
             "description": "Mr.Click was a good man, but ever since people found the power his hand held they sought it too. Buying this while knowing this makes you a monster.",
             "value": 10,
+            "cost": 300,
             "type": "second",
             "image": "images/item-img-2.png"
         },
@@ -31,6 +33,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Joystick of DOOOMMM",
             "description": "THIS IS THE JOYSTICK OF DOOMMM, IT HAS THE POWER TO DESTROY THE WORLDDD. WAIT, DON'T TOUCH ITT. oh, nothing happened.",
             "value": 20,
+            "cost": 1000,
             "type": "click",
             "image": "images/item-img-3.png"
         },
@@ -39,6 +42,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Importance",
             "description": "The essence of an excalmation mark trapped in form. A mad scientist wanted to show his idea to the world and created this to force people to care.",
             "value": 200,
+            "cost": 50000,
             "type": "second",
             "image": "images/item-img-4.png"
         },
@@ -47,6 +51,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Mr. Smiley",
             "description": "Mr. Smiley is always smiling, he is your friend. Mr. Smiley is always smiling, he is your friend. Mr. Smiley is always smiling, he is your friend. Mr. Smiley is always smiling, he is your friend.",
             "value": 1000,
+            "cost": 200000,
             "type": "click",
             "image": "images/item-img-5.png"
         },
@@ -55,6 +60,7 @@ app.get("/api/items", (req, res)=>{
             "name": "WFO",
             "description": "So you're seriously telling me you actually saw a WFO? A wonderful flying object? You know those aren't real right, you're always lying to me.",
             "value": 10000,
+            "cost": 1000000,
             "type": "click",
             "image": "images/item-img-6.png"
         },
@@ -63,6 +69,7 @@ app.get("/api/items", (req, res)=>{
             "name": "GameMan",
             "description": "The GameMan is a machine where your most wild imaginations can be emulated on it. Dreams, aspirations, and even evil can be shown on it's screen. This is not supposed to be anything else...",
             "value": 300000,
+            "cost": 60000000,
             "type": "second",
             "image": "images/item-img-7.png"
         },
@@ -71,6 +78,7 @@ app.get("/api/items", (req, res)=>{
             "name": "Starite",
             "description": "This is where all the starries come from, the final frontier of stardom. To be the starite is a blessing that none of us will recieve, a fate most crushing.",
             "value": 100000000,
+            "cost": 900000000,
             "type": "second",
             "image": "images/item-img-8.png"
         }
