@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const Joi = require("joi");
@@ -10,7 +9,6 @@ app.use(express.json()); // <-- parse JSON bodies
 
 const mongoose = require("mongoose");
 
-//testdb is name of database, it will automatically make it
 mongoose
   .connect("mongodb+srv://rvaz:12341234@cluster0.hiqu0cx.mongodb.net/?appName=Cluster0")
   .then(() => console.log("Connected to mongodb..."))
@@ -25,7 +23,6 @@ async function createMessage() {
   console.log(result);
 }
 
-//this creates a Message class in our app
 const Message = mongoose.model("Message", schema);
 const message = new Message({
   name: "Hello World",
@@ -33,7 +30,6 @@ const message = new Message({
 
 createMessage();
 
-// in-memory items array (moved outside handlers so POST can push into it)
 const items = [
   {
     id: 1,
@@ -121,14 +117,12 @@ app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
-// Return the items array
 app.get("/api/items", (req, res) => {
   res.json(items);
 });
 
-// Joi schema for validating incoming new items
 const itemSchema = Joi.object({
-  id: Joi.forbidden(), // client should not provide id
+  id: Joi.forbidden(), 
   name: Joi.string().min(3).required(),
   description: Joi.string().min(10).required(),
   value: Joi.number().min(0).required(),
@@ -137,12 +131,11 @@ const itemSchema = Joi.object({
   image: Joi.string().allow("").optional(),
 });
 
-// Create new item
+
 app.post("/api/items", (req, res) => {
   const { error, value } = itemSchema.validate(req.body, { abortEarly: false });
 
   if (error) {
-    // return first message and a 400 status
     return res.status(400).json({
       success: false,
       message: "Validation failed",
@@ -150,7 +143,6 @@ app.post("/api/items", (req, res) => {
     });
   }
 
-  // assign id and push
   const newId = items.length ? items[items.length - 1].id + 1 : 1;
   const newItem = {
     id: newId,
@@ -159,7 +151,7 @@ app.post("/api/items", (req, res) => {
     value: value.value,
     cost: value.cost,
     type: value.type,
-    image: value.image ? value.image : "images/item-img-1.png", // fallback if empty
+    image: value.image ? value.image : "images/item-img-1.png",
   };
 
   items.push(newItem);
