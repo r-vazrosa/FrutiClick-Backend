@@ -1,11 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const Joi = require("joi");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 
 const app = express();
 app.use(express.static("public"));
 app.use(cors());
-app.use(express.json()); // <-- parse JSON bodies
+app.use(express.json()); 
 
 const mongoose = require("mongoose");
 
@@ -113,6 +116,34 @@ const items = [
   },
 ];
 
+const imagesDir = path.join(__dirname, "public", "images");
+try {
+  fs.mkdirSync(imagesDir, { recursive: true });
+} catch (e) {
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, imagesDir);
+  },
+  filename: (req, file, cb) => {
+    const timestamp = Date.now();
+    const safe = file.originalname.replace(/\s+/g, "-");
+    cb(null, `${timestamp}-${safe}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image uploads are allowed."));
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
@@ -122,7 +153,7 @@ app.get("/api/items", (req, res) => {
 });
 
 const itemSchema = Joi.object({
-  id: Joi.forbidden(), 
+  id: Joi.forbidden(),
   name: Joi.string().min(3).required(),
   description: Joi.string().min(10).required(),
   value: Joi.number().min(0).required(),
@@ -131,10 +162,35 @@ const itemSchema = Joi.object({
   image: Joi.string().allow("").optional(),
 });
 
+function validateItemPayload(payload) {
+  const normalized = {
+    name: payload.name,
+    description: payload.description,
+    value: Number(payload.value),
+    cost: Number(payload.cost),
+    type: payload.type,
+    image: payload.image || "",
+  };
+  return itemSchema.validate(normalized, { abortEarly: false });
+}
 
-app.post("/api/items", (req, res) => {
-  const { error, value } = itemSchema.validate(req.body, { abortEarly: false });
+app.post("/api/items", upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "Image file is required. Upload an image using the 'image' form field.",
+    });
+  }
 
+  const payload = {
+    name: req.body.name,
+    description: req.body.description,
+    value: req.body.value,
+    cost: req.body.cost,
+    type: req.body.type,
+  };
+
+  const { error, value } = validateItemPayload(payload);
   if (error) {
     return res.status(400).json({
       success: false,
@@ -143,6 +199,7 @@ app.post("/api/items", (req, res) => {
     });
   }
 
+  const imagePath = "/images/" + req.file.filename;
   const newId = items.length ? items[items.length - 1].id + 1 : 1;
   const newItem = {
     id: newId,
@@ -151,12 +208,71 @@ app.post("/api/items", (req, res) => {
     value: value.value,
     cost: value.cost,
     type: value.type,
-    image: value.image ? value.image : "images/item-img-1.png",
+    image: imagePath,
   };
 
   items.push(newItem);
-
   return res.status(201).json({ success: true, item: newItem });
+});
+
+app.put("/api/items/:id", upload.single("image"), (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ success: false, message: "Invalid id parameter" });
+  }
+
+  const item = items.find((i) => i.id === id);
+  if (!item) {
+    return res.status(404).json({ success: false, message: "Item not found" });
+  }
+
+  if (!req.file) {
+    return res.status(400).json({
+      success: false,
+      message: "Image file is required for updating the item. Upload an image using the 'image' form field.",
+    });
+  }
+
+  const payload = {
+    name: req.body.name,
+    description: req.body.description,
+    value: req.body.value,
+    cost: req.body.cost,
+    type: req.body.type,
+  };
+
+  const { error, value } = validateItemPayload(payload);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Validation failed",
+      details: error.details.map((d) => ({ field: d.path.join("."), message: d.message })),
+    });
+  }
+
+  item.name = value.name;
+  item.description = value.description;
+  item.value = value.value;
+  item.cost = value.cost;
+  item.type = value.type;
+  item.image = "/images/" + req.file.filename;
+
+  return res.status(200).json({ success: true, item });
+});
+
+app.delete("/api/items/:id", (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ success: false, message: "Invalid id parameter" });
+  }
+
+  const index = items.findIndex((i) => i.id === id);
+  if (index === -1) {
+    return res.status(404).json({ success: false, message: "Item not found" });
+  }
+
+  const deleted = items.splice(index, 1)[0];
+  return res.status(200).json({ success: true, item: deleted });
 });
 
 const PORT = process.env.PORT || 3002;
