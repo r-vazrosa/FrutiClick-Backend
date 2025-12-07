@@ -4,36 +4,32 @@ const Joi = require("joi");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const mongoose = require("mongoose");
 
 const app = express();
 app.use(express.static("public"));
 app.use(cors());
-app.use(express.json()); 
+app.use(express.json());
 
-const mongoose = require("mongoose");
-
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://rvaz:12341234@cluster0.hiqu0cx.mongodb.net/?appName=Cluster0";
 mongoose
-  .connect("mongodb+srv://rvaz:12341234@cluster0.hiqu0cx.mongodb.net/?appName=Cluster0")
+  .connect(MONGO_URI)
   .then(() => console.log("Connected to mongodb..."))
-  .catch((err) => console.error("could not connect ot mongodb...", err));
+  .catch((err) => console.error("could not connect to mongodb...", err));
 
-const schema = new mongoose.Schema({
-  name: String,
-});
+const itemMongooseSchema = new mongoose.Schema({
+  id: { type: Number, required: true, unique: true },
+  name: { type: String, required: true },
+  description: { type: String, required: true },
+  value: { type: Number, required: true, min: 0 },
+  cost: { type: Number, required: true, min: 0 },
+  type: { type: String, enum: ["click", "second"], required: true },
+  image: { type: String, default: "" }
+}, { timestamps: true });
 
-async function createMessage() {
-  const result = await message.save();
-  console.log(result);
-}
+const Item = mongoose.model("Item", itemMongooseSchema);
 
-const Message = mongoose.model("Message", schema);
-const message = new Message({
-  name: "Hello World",
-});
-
-createMessage();
-
-const items = [
+const seedItemsArray = [
   {
     id: 1,
     name: "Flimsy CD",
@@ -42,7 +38,7 @@ const items = [
     value: 1,
     cost: 20,
     type: "click",
-    image: "images/item-img-1.png",
+    image: "/images/item-img-1.png"
   },
   {
     id: 2,
@@ -52,7 +48,7 @@ const items = [
     value: 10,
     cost: 300,
     type: "second",
-    image: "images/item-img-2.png",
+    image: "/images/item-img-2.png"
   },
   {
     id: 3,
@@ -62,7 +58,7 @@ const items = [
     value: 20,
     cost: 1000,
     type: "click",
-    image: "images/item-img-3.png",
+    image: "/images/item-img-3.png"
   },
   {
     id: 4,
@@ -72,7 +68,7 @@ const items = [
     value: 200,
     cost: 50000,
     type: "second",
-    image: "images/item-img-4.png",
+    image: "/images/item-img-4.png"
   },
   {
     id: 5,
@@ -82,7 +78,7 @@ const items = [
     value: 1000,
     cost: 200000,
     type: "click",
-    image: "images/item-img-5.png",
+    image: "/images/item-img-5.png"
   },
   {
     id: 6,
@@ -92,7 +88,7 @@ const items = [
     value: 10000,
     cost: 1000000,
     type: "click",
-    image: "images/item-img-6.png",
+    image: "/images/item-img-6.png"
   },
   {
     id: 7,
@@ -102,7 +98,7 @@ const items = [
     value: 300000,
     cost: 60000000,
     type: "second",
-    image: "images/item-img-7.png",
+    image: "/images/item-img-7.png"
   },
   {
     id: 8,
@@ -112,25 +108,36 @@ const items = [
     value: 100000000,
     cost: 900000000,
     type: "second",
-    image: "images/item-img-8.png",
-  },
+    image: "/images/item-img-8.png"
+  }
 ];
 
-const imagesDir = path.join(__dirname, "public", "images");
-try {
-  fs.mkdirSync(imagesDir, { recursive: true });
-} catch (e) {
+async function seedIfEmpty() {
+  try {
+    const count = await Item.countDocuments();
+    if (count === 0) {
+      await Item.insertMany(seedItemsArray);
+      console.log("Seeded items into MongoDB");
+    }
+  } catch (e) {
+    console.error("Seeding error", e);
+  }
 }
 
+mongoose.connection.on("open", () => {
+  seedIfEmpty();
+});
+
+const imagesDir = path.join(__dirname, "public", "images");
+fs.mkdirSync(imagesDir, { recursive: true });
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, imagesDir);
-  },
+  destination: (req, file, cb) => cb(null, imagesDir),
   filename: (req, file, cb) => {
     const timestamp = Date.now();
     const safe = file.originalname.replace(/\s+/g, "-");
     cb(null, `${timestamp}-${safe}`);
-  },
+  }
 });
 
 const upload = multer({
@@ -141,25 +148,17 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/index.html");
-});
-
-app.get("/api/items", (req, res) => {
-  res.json(items);
-});
-
-const itemSchema = Joi.object({
+const itemJoiSchema = Joi.object({
   id: Joi.forbidden(),
   name: Joi.string().min(3).required(),
   description: Joi.string().min(10).required(),
   value: Joi.number().min(0).required(),
   cost: Joi.number().min(0).required(),
   type: Joi.string().valid("click", "second").required(),
-  image: Joi.string().allow("").optional(),
+  image: Joi.string().allow("").optional()
 });
 
 function validateItemPayload(payload) {
@@ -169,110 +168,124 @@ function validateItemPayload(payload) {
     value: Number(payload.value),
     cost: Number(payload.cost),
     type: payload.type,
-    image: payload.image || "",
+    image: payload.image || ""
   };
-  return itemSchema.validate(normalized, { abortEarly: false });
+  return itemJoiSchema.validate(normalized, { abortEarly: false });
 }
 
-app.post("/api/items", upload.single("image"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      message: "Image file is required. Upload an image using the 'image' form field.",
-    });
-  }
-
-  const payload = {
-    name: req.body.name,
-    description: req.body.description,
-    value: req.body.value,
-    cost: req.body.cost,
-    type: req.body.type,
-  };
-
-  const { error, value } = validateItemPayload(payload);
-  if (error) {
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      details: error.details.map((d) => ({ field: d.path.join("."), message: d.message })),
-    });
-  }
-
-  const imagePath = "/images/" + req.file.filename;
-  const newId = items.length ? items[items.length - 1].id + 1 : 1;
-  const newItem = {
-    id: newId,
-    name: value.name,
-    description: value.description,
-    value: value.value,
-    cost: value.cost,
-    type: value.type,
-    image: imagePath,
-  };
-
-  items.push(newItem);
-  return res.status(201).json({ success: true, item: newItem });
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
-app.put("/api/items/:id", upload.single("image"), (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ success: false, message: "Invalid id parameter" });
+app.get("/api/items", async (req, res) => {
+  try {
+    const docs = await Item.find().sort({ id: 1 }).lean();
+    return res.json(docs);
+  } catch (err) {
+    console.error("GET /api/items error", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
-
-  const item = items.find((i) => i.id === id);
-  if (!item) {
-    return res.status(404).json({ success: false, message: "Item not found" });
-  }
-
-  if (!req.file) {
-    return res.status(400).json({
-      success: false,
-      message: "Image file is required for updating the item. Upload an image using the 'image' form field.",
-    });
-  }
-
-  const payload = {
-    name: req.body.name,
-    description: req.body.description,
-    value: req.body.value,
-    cost: req.body.cost,
-    type: req.body.type,
-  };
-
-  const { error, value } = validateItemPayload(payload);
-  if (error) {
-    return res.status(400).json({
-      success: false,
-      message: "Validation failed",
-      details: error.details.map((d) => ({ field: d.path.join("."), message: d.message })),
-    });
-  }
-
-  item.name = value.name;
-  item.description = value.description;
-  item.value = value.value;
-  item.cost = value.cost;
-  item.type = value.type;
-  item.image = "/images/" + req.file.filename;
-
-  return res.status(200).json({ success: true, item });
 });
 
-app.delete("/api/items/:id", (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  if (Number.isNaN(id)) {
-    return res.status(400).json({ success: false, message: "Invalid id parameter" });
+app.post("/api/items", upload.single("image"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Image file is required. Upload an image using the 'image' form field."
+      });
+    }
+    const payload = {
+      name: req.body.name,
+      description: req.body.description,
+      value: req.body.value,
+      cost: req.body.cost,
+      type: req.body.type
+    };
+    const { error, value } = validateItemPayload(payload);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        details: error.details.map((d) => ({ field: d.path.join("."), message: d.message }))
+      });
+    }
+    const maxItem = await Item.findOne().sort({ id: -1 }).lean();
+    const newId = maxItem ? (maxItem.id + 1) : 1;
+    const imagePath = "/images/" + req.file.filename;
+    const newItem = new Item({
+      id: newId,
+      name: value.name,
+      description: value.description,
+      value: value.value,
+      cost: value.cost,
+      type: value.type,
+      image: imagePath
+    });
+    await newItem.save();
+    return res.status(201).json({ success: true, item: newItem.toObject() });
+  } catch (err) {
+    console.error("POST /api/items error", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
+});
 
-  const index = items.findIndex((i) => i.id === id);
-  if (index === -1) {
-    return res.status(404).json({ success: false, message: "Item not found" });
+app.put("/api/items/:id", upload.single("image"), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, message: "Invalid id parameter" });
+    }
+    const existing = await Item.findOne({ id });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
+    const payload = {
+      name: req.body.name,
+      description: req.body.description,
+      value: req.body.value,
+      cost: req.body.cost,
+      type: req.body.type
+    };
+    const { error, value } = validateItemPayload(payload);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: "Validation failed",
+        details: error.details.map((d) => ({ field: d.path.join("."), message: d.message }))
+      });
+    }
+    existing.name = value.name;
+    existing.description = value.description;
+    existing.value = value.value;
+    existing.cost = value.cost;
+    existing.type = value.type;
+    if (req.file) {
+      existing.image = "/images/" + req.file.filename;
+    }
+    await existing.save();
+    return res.status(200).json({ success: true, item: existing.toObject() });
+  } catch (err) {
+    console.error("PUT /api/items/:id error", err);
+    return res.status(500).json({ success: false, message: "Server error" });
   }
+});
 
-  const deleted = items.splice(index, 1)[0];
-  return res.status(200).json({ success: true, item: deleted });
+app.delete("/api/items/:id", async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ success: false, message: "Invalid id parameter" });
+    }
+    const deleted = await Item.findOneAndDelete({ id });
+    if (!deleted) {
+      return res.status(404).json({ success: false, message: "Item not found" });
+    }
+    return res.status(200).json({ success: true, item: deleted.toObject() });
+  } catch (err) {
+    console.error("DELETE /api/items/:id error", err);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 const PORT = process.env.PORT || 3002;
